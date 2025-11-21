@@ -164,80 +164,83 @@ if search_button and query:
     if not data_types:
         st.warning("請至少選擇一種資料類型")
     else:
-        with st.spinner("🔍 正在搜尋相關文件..."):
-            try:
-                # 初始化元件
-                retriever = get_retriever()
-                llm = get_llm()
+        try:
+            # 初始化元件
+            retriever = get_retriever()
+            llm = get_llm()
 
-                # 執行搜尋
+            # 第一階段：向量搜尋
+            with st.spinner("🔍 正在搜尋相關文件..."):
                 results = retriever.search(
                     query=query,
                     top_k=top_k,
                     data_types=data_types if len(data_types) < 3 else None
                 )
 
-                if not results:
-                    st.info("未找到相關文件，請嘗試其他關鍵字。")
+            if not results:
+                st.info("未找到相關文件，請嘗試其他關鍵字。")
+            else:
+                # 生成上下文
+                context = retriever.get_context(
+                    query=query,
+                    top_k=top_k,
+                    data_types=data_types if len(data_types) < 3 else None
+                )
+
+                # 第二階段：LLM 生成回答
+                st.subheader("📝 AI 回答")
+                if llm:
+                    with st.spinner("正在生成 AI 回答..."):
+                        answer = generate_answer(llm, query, context)
+                    st.markdown(answer)
                 else:
-                    # 生成上下文
-                    context = retriever.get_context(
-                        query=query,
-                        top_k=top_k,
-                        data_types=data_types if len(data_types) < 3 else None
-                    )
+                    st.warning("未設定 GEMINI_API_KEY，無法生成 AI 回答")
 
-                    st.success("✅ 查詢完成")
+                st.success("✅ 查詢完成")
+
+                # 顯示參考來源
+                if show_sources:
                     st.markdown("---")
+                    st.subheader(f"📚 參考來源 ({len(results)} 筆)")
 
-                    # LLM 回答
-                    st.subheader("📝 AI 回答")
-                    if llm:
-                        with st.spinner("正在生成回答..."):
-                            answer = generate_answer(llm, query, context)
-                            st.markdown(answer)
-                    else:
-                        st.warning("未設定 GEMINI_API_KEY，無法生成 AI 回答")
+                    # 使用查詢內容的 hash 作為 key prefix，確保每次查詢重置展開狀態
+                    query_hash = hash(query) % 10000
 
-                    # 顯示參考來源
-                    if show_sources:
-                        st.markdown("---")
-                        st.subheader(f"📚 參考來源 ({len(results)} 筆)")
+                    for i, r in enumerate(results, 1):
+                        # 資料類型標籤
+                        type_labels = {
+                            "penalty": "🔴 裁罰案件",
+                            "law_interpretation": "🔵 法令函釋",
+                            "announcement": "🟢 重要公告"
+                        }
+                        type_label = type_labels.get(r.data_type, r.data_type)
 
-                        for i, r in enumerate(results, 1):
-                            # 資料類型標籤
-                            type_labels = {
-                                "penalty": "🔴 裁罰案件",
-                                "law_interpretation": "🔵 法令函釋",
-                                "announcement": "🟢 重要公告"
-                            }
-                            type_label = type_labels.get(r.data_type, r.data_type)
+                        with st.expander(
+                            f"{type_label} | 相關度: {r.score:.2%}",
+                            expanded=False,
+                            key=f"source_{query_hash}_{i}"
+                        ):
+                            # 元資料
+                            meta_cols = st.columns(3)
+                            if r.metadata.get("date"):
+                                meta_cols[0].markdown(f"**日期:** {r.metadata['date']}")
+                            if r.metadata.get("title"):
+                                title = r.metadata['title']
+                                display_title = title[:30] + "..." if len(title) > 30 else title
+                                meta_cols[1].markdown(f"**標題:** {display_title}")
+                            if r.metadata.get("doc_number"):
+                                meta_cols[2].markdown(f"**文號:** {r.metadata['doc_number']}")
 
-                            with st.expander(
-                                f"{type_label} | 相關度: {r.score:.2%}",
-                                expanded=(i <= 2)
-                            ):
-                                # 元資料
-                                meta_cols = st.columns(3)
-                                if r.metadata.get("date"):
-                                    meta_cols[0].markdown(f"**日期:** {r.metadata['date']}")
-                                if r.metadata.get("title"):
-                                    title = r.metadata['title']
-                                    display_title = title[:30] + "..." if len(title) > 30 else title
-                                    meta_cols[1].markdown(f"**標題:** {display_title}")
-                                if r.metadata.get("doc_number"):
-                                    meta_cols[2].markdown(f"**文號:** {r.metadata['doc_number']}")
+                            # 內容
+                            st.markdown("**內容:**")
+                            display_text = r.text[:500] + "..." if len(r.text) > 500 else r.text
+                            st.text(display_text)
 
-                                # 內容
-                                st.markdown("**內容:**")
-                                display_text = r.text[:500] + "..." if len(r.text) > 500 else r.text
-                                st.text(display_text)
+                            st.caption(f"文件 ID: {r.doc_id} | Chunk ID: {r.chunk_id}")
 
-                                st.caption(f"文件 ID: {r.doc_id} | Chunk ID: {r.chunk_id}")
-
-            except Exception as e:
-                st.error(f"搜尋時發生錯誤：{str(e)}")
-                st.exception(e)
+        except Exception as e:
+            st.error(f"搜尋時發生錯誤：{str(e)}")
+            st.exception(e)
 
 elif search_button and not query:
     st.warning("⚠️ 請輸入查詢內容")
