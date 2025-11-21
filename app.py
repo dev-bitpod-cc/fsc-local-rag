@@ -59,6 +59,19 @@ def get_retriever():
     return FSCRetriever(prefer_api=True, lazy_load=False)
 
 
+@st.cache_data
+def load_url_mapping():
+    """載入 doc_id -> URL 映射"""
+    import json
+    from pathlib import Path
+
+    mapping_file = Path(__file__).parent / 'doc_url_mapping.json'
+    if mapping_file.exists():
+        with open(mapping_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
 def get_secret(key: str, default: str = None):
     """取得密鑰，優先使用 Streamlit secrets"""
     try:
@@ -208,6 +221,9 @@ if search_button and query:
                     st.markdown("---")
                     st.subheader(f"📚 參考來源 ({len(results)} 筆)")
 
+                    # 載入 URL 映射
+                    url_mapping = load_url_mapping()
+
                     for i, r in enumerate(results, 1):
                         # 資料類型標籤
                         type_labels = {
@@ -239,7 +255,12 @@ if search_button and query:
                             display_text = r.text[:500] + "..." if len(r.text) > 500 else r.text
                             st.text(display_text)
 
-                            st.caption(f"文件 ID: {r.doc_id} | Chunk ID: {r.chunk_id}")
+                            # 原始連結
+                            original_url = url_mapping.get(r.doc_id, "")
+                            if original_url:
+                                st.markdown(f"🔗 [查看金管會原始公告]({original_url})")
+
+                            st.caption(f"文件 ID: {r.doc_id}")
 
         except Exception as e:
             st.error(f"搜尋時發生錯誤：{str(e)}")
