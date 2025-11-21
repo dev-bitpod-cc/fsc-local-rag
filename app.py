@@ -229,8 +229,10 @@ if search_button and query:
                                 title = r.metadata['title']
                                 display_title = title[:30] + "..." if len(title) > 30 else title
                                 meta_cols[1].markdown(f"**標題:** {display_title}")
-                            if r.metadata.get("doc_number"):
-                                meta_cols[2].markdown(f"**文號:** {r.metadata['doc_number']}")
+                            # 過濾無效的文號（太長或包含描述性文字）
+                            doc_number = r.metadata.get("doc_number", "")
+                            if doc_number and len(doc_number) < 50 and "行政院" not in doc_number and "裁罰案件" not in doc_number:
+                                meta_cols[2].markdown(f"**文號:** {doc_number}")
 
                             # 內容
                             st.markdown("**內容:**")
