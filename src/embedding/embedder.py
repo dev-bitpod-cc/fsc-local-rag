@@ -354,10 +354,18 @@ class QueryEmbedder:
 
     def _init_local(self):
         """初始化本地模型"""
-        logger.info("初始化本地 BGE-M3 模型...")
-        self.embedder = LocalBGEM3Embedder(model_name=self.model_name)
-        self.mode = "local"
-        logger.info("使用本地模型進行查詢向量化")
+        try:
+            logger.info("初始化本地 BGE-M3 模型...")
+            self.embedder = LocalBGEM3Embedder(model_name=self.model_name)
+            self.mode = "local"
+            logger.info("使用本地模型進行查詢向量化")
+        except Exception as e:
+            logger.error(f"無法初始化本地模型: {e}")
+            raise RuntimeError(
+                "無法初始化 embedding 模型。請確認：\n"
+                "1. 已設定有效的 HF_API_TOKEN 環境變數，或\n"
+                "2. 已安裝 FlagEmbedding 和 torch（本地模式）"
+            )
 
     def embed(self, text: str) -> np.ndarray:
         """
