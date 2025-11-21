@@ -219,12 +219,19 @@ if search_button and query:
                 # 顯示參考來源
                 if show_sources:
                     st.markdown("---")
-                    st.subheader(f"📚 參考來源 ({len(results)} 筆)")
+                    st.subheader(f"📚 參考來源 ({len(results)} 筆，依時間排序）")
 
                     # 載入 URL 映射
                     url_mapping = load_url_mapping()
 
-                    for i, r in enumerate(results, 1):
+                    # 按日期排序（從新到舊）
+                    sorted_results = sorted(
+                        results,
+                        key=lambda x: x.metadata.get("date", ""),
+                        reverse=True
+                    )
+
+                    for i, r in enumerate(sorted_results, 1):
                         # 資料類型標籤
                         type_labels = {
                             "penalty": "🔴 裁罰案件",
@@ -233,22 +240,20 @@ if search_button and query:
                         }
                         type_label = type_labels.get(r.data_type, r.data_type)
 
-                        with st.expander(
-                            f"{type_label} | 相關度: {r.score:.2%}",
-                            expanded=False
-                        ):
-                            # 元資料
-                            meta_cols = st.columns(3)
-                            if r.metadata.get("date"):
-                                meta_cols[0].markdown(f"**日期:** {r.metadata['date']}")
-                            if r.metadata.get("title"):
-                                title = r.metadata['title']
-                                display_title = title[:30] + "..." if len(title) > 30 else title
-                                meta_cols[1].markdown(f"**標題:** {display_title}")
-                            # 過濾無效的文號（太長或包含描述性文字）
+                        # 標題：類型 + 日期 + 名稱
+                        date_str = r.metadata.get("date", "")
+                        title = r.metadata.get("title", "") or r.metadata.get("entity_name", "") or r.doc_id
+                        display_title = title[:40] + "..." if len(title) > 40 else title
+                        expander_title = f"{type_label} | {date_str} | {display_title}"
+
+                        with st.expander(expander_title, expanded=False):
+                            # 相關度
+                            st.markdown(f"**相關度:** {r.score:.2%}")
+
+                            # 過濾無效的文號
                             doc_number = r.metadata.get("doc_number", "")
                             if doc_number and len(doc_number) < 50 and "行政院" not in doc_number and "裁罰案件" not in doc_number:
-                                meta_cols[2].markdown(f"**文號:** {doc_number}")
+                                st.markdown(f"**文號:** {doc_number}")
 
                             # 內容
                             st.markdown("**內容:**")
@@ -259,8 +264,6 @@ if search_button and query:
                             original_url = url_mapping.get(r.doc_id, "")
                             if original_url:
                                 st.markdown(f"🔗 [查看金管會原始公告]({original_url})")
-
-                            st.caption(f"文件 ID: {r.doc_id}")
 
         except Exception as e:
             st.error(f"搜尋時發生錯誤：{str(e)}")
