@@ -180,6 +180,9 @@ if search_button and query:
             if not results:
                 st.info("未找到相關文件，請嘗試其他關鍵字。")
             else:
+                # 顯示搜尋結果數量
+                st.info(f"📄 找到 {len(results)} 筆相關文件，正在準備上下文...")
+
                 # 生成上下文
                 context = retriever.get_context(
                     query=query,
@@ -189,7 +192,7 @@ if search_button and query:
 
                 # 第二階段：LLM 生成回答
                 if llm:
-                    with st.spinner("正在生成 AI 回答..."):
+                    with st.spinner("🤖 正在生成 AI 回答..."):
                         answer = generate_answer(llm, query, context)
                     st.success("✅ 查詢完成")
                     st.markdown("---")
