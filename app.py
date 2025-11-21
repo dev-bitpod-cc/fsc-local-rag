@@ -219,17 +219,24 @@ if search_button and query:
                 # 顯示參考來源
                 if show_sources:
                     st.markdown("---")
-                    st.subheader(f"📚 參考來源 ({len(results)} 筆，依時間排序）")
 
                     # 載入 URL 映射
                     url_mapping = load_url_mapping()
 
+                    # 去重：同一 doc_id 只保留相關度最高的 chunk
+                    unique_results = {}
+                    for r in results:
+                        if r.doc_id not in unique_results or r.score > unique_results[r.doc_id].score:
+                            unique_results[r.doc_id] = r
+
                     # 按日期排序（從新到舊）
                     sorted_results = sorted(
-                        results,
+                        unique_results.values(),
                         key=lambda x: x.metadata.get("date", ""),
                         reverse=True
                     )
+
+                    st.subheader(f"📚 參考來源 ({len(sorted_results)} 筆文件，依時間排序）")
 
                     for i, r in enumerate(sorted_results, 1):
                         # 資料類型標籤
