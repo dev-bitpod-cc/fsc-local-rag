@@ -23,6 +23,29 @@ from loguru import logger
 # 載入環境變數
 load_dotenv()
 
+
+def get_secret(key: str, default: str = None) -> Optional[str]:
+    """
+    取得密鑰，優先使用 Streamlit secrets，否則使用環境變數
+
+    Args:
+        key: 密鑰名稱
+        default: 預設值
+
+    Returns:
+        密鑰值
+    """
+    # 優先嘗試 Streamlit secrets
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+
+    # 回退到環境變數
+    return os.getenv(key, default)
+
 # BGE-M3 向量維度
 VECTOR_DIMENSION = 1024
 
@@ -57,8 +80,8 @@ class FSCQdrantClient:
             api_key: Qdrant API Key，預設從環境變數讀取
             collection_name: Collection 名稱
         """
-        self.url = url or os.getenv("QDRANT_URL")
-        self.api_key = api_key or os.getenv("QDRANT_API_KEY")
+        self.url = url or get_secret("QDRANT_URL")
+        self.api_key = api_key or get_secret("QDRANT_API_KEY")
         self.collection_name = collection_name
 
         if not self.url or not self.api_key:

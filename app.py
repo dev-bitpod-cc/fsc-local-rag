@@ -59,12 +59,22 @@ def get_retriever():
     return FSCRetriever(prefer_api=True, lazy_load=False)
 
 
+def get_secret(key: str, default: str = None):
+    """取得密鑰，優先使用 Streamlit secrets"""
+    try:
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
+
 @st.cache_resource
 def get_llm():
     """初始化 Gemini LLM（快取）"""
     import google.generativeai as genai
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = get_secret("GEMINI_API_KEY")
     if not api_key:
         return None
 

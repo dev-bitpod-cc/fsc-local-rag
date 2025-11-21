@@ -18,6 +18,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def get_secret(key: str, default: str = None) -> Optional[str]:
+    """
+    取得密鑰，優先使用 Streamlit secrets，否則使用環境變數
+    """
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
+
 class LocalBGEM3Embedder:
     """本地 BGE-M3 Embedding（用於批量處理文件）"""
 
@@ -159,7 +172,7 @@ class HFInferenceEmbedder:
             api_token: HuggingFace API Token
         """
         self.model_name = model_name
-        self.api_token = api_token or os.getenv("HF_API_TOKEN")
+        self.api_token = api_token or get_secret("HF_API_TOKEN")
 
         if not self.api_token:
             logger.warning("未設定 HF_API_TOKEN，可能會有速率限制")
@@ -240,8 +253,8 @@ class TEIEmbedder:
             endpoint_url: TEI 服務端點 URL
             api_token: API Token（如果需要認證）
         """
-        self.endpoint_url = endpoint_url or os.getenv("TEI_ENDPOINT_URL")
-        self.api_token = api_token or os.getenv("HF_API_TOKEN")
+        self.endpoint_url = endpoint_url or get_secret("TEI_ENDPOINT_URL")
+        self.api_token = api_token or get_secret("HF_API_TOKEN")
 
         if not self.endpoint_url:
             raise ValueError(
@@ -322,7 +335,7 @@ class QueryEmbedder:
             model_name: 模型名稱
         """
         self.model_name = model_name
-        self.api_token = api_token or os.getenv("HF_API_TOKEN")
+        self.api_token = api_token or get_secret("HF_API_TOKEN")
         self.embedder = None
         self.mode = None
 
