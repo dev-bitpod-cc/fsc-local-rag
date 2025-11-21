@@ -193,18 +193,14 @@ if search_button and query:
                     with st.spinner("正在生成 AI 回答..."):
                         answer = generate_answer(llm, query, context)
                     st.markdown(answer)
+                    st.success("✅ 查詢完成")
                 else:
                     st.warning("未設定 GEMINI_API_KEY，無法生成 AI 回答")
-
-                st.success("✅ 查詢完成")
 
                 # 顯示參考來源
                 if show_sources:
                     st.markdown("---")
                     st.subheader(f"📚 參考來源 ({len(results)} 筆)")
-
-                    # 使用查詢內容的 hash 作為 key prefix，確保每次查詢重置展開狀態
-                    query_hash = hash(query) % 10000
 
                     for i, r in enumerate(results, 1):
                         # 資料類型標籤
@@ -217,8 +213,7 @@ if search_button and query:
 
                         with st.expander(
                             f"{type_label} | 相關度: {r.score:.2%}",
-                            expanded=False,
-                            key=f"source_{query_hash}_{i}"
+                            expanded=False
                         ):
                             # 元資料
                             meta_cols = st.columns(3)
