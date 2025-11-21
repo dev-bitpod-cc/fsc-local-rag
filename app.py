@@ -188,12 +188,13 @@ if search_button and query:
                 )
 
                 # 第二階段：LLM 生成回答
-                st.subheader("📝 AI 回答")
                 if llm:
                     with st.spinner("正在生成 AI 回答..."):
                         answer = generate_answer(llm, query, context)
-                    st.markdown(answer)
                     st.success("✅ 查詢完成")
+                    st.markdown("---")
+                    st.subheader("📝 AI 回答")
+                    st.markdown(answer)
                 else:
                     st.warning("未設定 GEMINI_API_KEY，無法生成 AI 回答")
 
