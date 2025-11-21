@@ -19,7 +19,7 @@ st.set_page_config(
 
 # 標題
 st.title("🏛️ 金管會文件智慧查詢")
-st.markdown("使用 BGE-M3 + Qdrant + Gemini 的 RAG 系統")
+st.info("💡 本系統使用 BGE-M3 + Qdrant + Gemini 的自建 RAG 架構")
 
 # 側邊欄設定
 with st.sidebar:
@@ -44,8 +44,12 @@ with st.sidebar:
     st.markdown("""
     - Embedding: BGE-M3
     - 向量資料庫: Qdrant Cloud
-    - LLM: Gemini 2.5 Flash
+    - LLM: Gemini 2.0 Flash
     """)
+
+    # 版本號
+    st.markdown("---")
+    st.caption("v1.0.0")
 
 
 @st.cache_resource
@@ -91,111 +95,143 @@ def generate_answer(llm, query: str, context: str) -> str:
         return f"生成回答時發生錯誤：{str(e)}"
 
 
+# 初始化 session state
+if 'current_query' not in st.session_state:
+    st.session_state.current_query = ""
+
 # 主要查詢區域
-query = st.text_input(
-    "🔍 請輸入您的問題",
-    placeholder="例如：保險公司違反洗錢防制規定會受到什麼處罰？"
+query = st.text_area(
+    "請輸入查詢內容：",
+    value=st.session_state.current_query,
+    placeholder="例如：保險公司違反洗錢防制規定會受到什麼處罰？",
+    height=100
 )
 
+# 快速查詢按鈕
+st.markdown("#### 🚀 快速查詢")
+
+quick_queries = [
+    "保險公司違反洗錢防制規定會受到什麼處罰？",
+    "證券交易法第171條的相關函釋有哪些？",
+    "銀行違反個資法的裁罰案例",
+    "金融機構內部控制缺失的處分標準",
+    "證券商違規處罰的常見類型有哪些？",
+    "金管會對投信投顧業者的監理重點"
+]
+
+cols = st.columns(2)
+for idx, quick_query in enumerate(quick_queries):
+    col_idx = idx % 2
+    with cols[col_idx]:
+        if st.button(f"📌 {quick_query}", key=f"quick_{idx}", use_container_width=True):
+            st.session_state.current_query = quick_query
+            st.rerun()
+
+st.markdown("")  # 空行分隔
+
 # 查詢按鈕
-if st.button("搜尋", type="primary") or (query and st.session_state.get("auto_search")):
-    if not query:
-        st.warning("請輸入查詢問題")
+col1, col2, col3 = st.columns([1, 1, 4])
+with col1:
+    search_button = st.button("🔍 查詢", type="primary", use_container_width=True)
+with col2:
+    clear_button = st.button("🗑️ 清除", use_container_width=True)
+
+if clear_button:
+    st.session_state.current_query = ""
+    st.rerun()
+
+# 執行查詢
+if search_button and query:
+    # 建立資料類型篩選
+    data_types = []
+    if filter_penalty:
+        data_types.append("penalty")
+    if filter_law:
+        data_types.append("law_interpretation")
+    if filter_announcement:
+        data_types.append("announcement")
+
+    if not data_types:
+        st.warning("請至少選擇一種資料類型")
     else:
-        # 建立資料類型篩選
-        data_types = []
-        if filter_penalty:
-            data_types.append("penalty")
-        if filter_law:
-            data_types.append("law_interpretation")
-        if filter_announcement:
-            data_types.append("announcement")
+        with st.spinner("🔍 正在搜尋相關文件..."):
+            try:
+                # 初始化元件
+                retriever = get_retriever()
+                llm = get_llm()
 
-        if not data_types:
-            st.warning("請至少選擇一種資料類型")
-        else:
-            with st.spinner("正在搜尋相關文件..."):
-                try:
-                    # 初始化元件
-                    retriever = get_retriever()
-                    llm = get_llm()
+                # 執行搜尋
+                results = retriever.search(
+                    query=query,
+                    top_k=top_k,
+                    data_types=data_types if len(data_types) < 3 else None
+                )
 
-                    # 執行搜尋
-                    results = retriever.search(
+                if not results:
+                    st.info("未找到相關文件，請嘗試其他關鍵字。")
+                else:
+                    # 生成上下文
+                    context = retriever.get_context(
                         query=query,
                         top_k=top_k,
                         data_types=data_types if len(data_types) < 3 else None
                     )
 
-                    if not results:
-                        st.info("未找到相關文件，請嘗試其他關鍵字。")
+                    st.success("✅ 查詢完成")
+                    st.markdown("---")
+
+                    # LLM 回答
+                    st.subheader("📝 AI 回答")
+                    if llm:
+                        with st.spinner("正在生成回答..."):
+                            answer = generate_answer(llm, query, context)
+                            st.markdown(answer)
                     else:
-                        # 生成上下文
-                        context = retriever.get_context(
-                            query=query,
-                            top_k=top_k,
-                            data_types=data_types if len(data_types) < 3 else None
-                        )
+                        st.warning("未設定 GEMINI_API_KEY，無法生成 AI 回答")
 
-                        # LLM 回答
-                        st.subheader("💡 AI 回答")
-                        if llm:
-                            with st.spinner("正在生成回答..."):
-                                answer = generate_answer(llm, query, context)
-                                st.markdown(answer)
-                        else:
-                            st.warning("未設定 GEMINI_API_KEY，無法生成 AI 回答")
+                    # 顯示參考來源
+                    if show_sources:
+                        st.markdown("---")
+                        st.subheader(f"📚 參考來源 ({len(results)} 筆)")
 
-                        # 顯示參考來源
-                        if show_sources:
-                            st.markdown("---")
-                            st.subheader(f"📚 參考來源 ({len(results)} 筆)")
+                        for i, r in enumerate(results, 1):
+                            # 資料類型標籤
+                            type_labels = {
+                                "penalty": "🔴 裁罰案件",
+                                "law_interpretation": "🔵 法令函釋",
+                                "announcement": "🟢 重要公告"
+                            }
+                            type_label = type_labels.get(r.data_type, r.data_type)
 
-                            for i, r in enumerate(results, 1):
-                                # 資料類型標籤
-                                type_labels = {
-                                    "penalty": "🔴 裁罰案件",
-                                    "law_interpretation": "🔵 法令函釋",
-                                    "announcement": "🟢 重要公告"
-                                }
-                                type_label = type_labels.get(r.data_type, r.data_type)
+                            with st.expander(
+                                f"{type_label} | 相關度: {r.score:.2%}",
+                                expanded=(i <= 2)
+                            ):
+                                # 元資料
+                                meta_cols = st.columns(3)
+                                if r.metadata.get("date"):
+                                    meta_cols[0].markdown(f"**日期:** {r.metadata['date']}")
+                                if r.metadata.get("title"):
+                                    title = r.metadata['title']
+                                    display_title = title[:30] + "..." if len(title) > 30 else title
+                                    meta_cols[1].markdown(f"**標題:** {display_title}")
+                                if r.metadata.get("doc_number"):
+                                    meta_cols[2].markdown(f"**文號:** {r.metadata['doc_number']}")
 
-                                with st.expander(
-                                    f"{type_label} | 相關度: {r.score:.2%}",
-                                    expanded=(i <= 2)
-                                ):
-                                    # 元資料
-                                    cols = st.columns(3)
-                                    if r.metadata.get("date"):
-                                        cols[0].markdown(f"**日期:** {r.metadata['date']}")
-                                    if r.metadata.get("title"):
-                                        cols[1].markdown(f"**標題:** {r.metadata['title'][:30]}...")
-                                    if r.metadata.get("doc_number"):
-                                        cols[2].markdown(f"**文號:** {r.metadata['doc_number']}")
+                                # 內容
+                                st.markdown("**內容:**")
+                                display_text = r.text[:500] + "..." if len(r.text) > 500 else r.text
+                                st.text(display_text)
 
-                                    # 內容
-                                    st.markdown("**內容:**")
-                                    st.text(r.text[:500] + "..." if len(r.text) > 500 else r.text)
+                                st.caption(f"文件 ID: {r.doc_id} | Chunk ID: {r.chunk_id}")
 
-                                    st.caption(f"文件 ID: {r.doc_id} | Chunk ID: {r.chunk_id}")
+            except Exception as e:
+                st.error(f"搜尋時發生錯誤：{str(e)}")
+                st.exception(e)
 
-                except Exception as e:
-                    st.error(f"搜尋時發生錯誤：{str(e)}")
-                    st.exception(e)
+elif search_button and not query:
+    st.warning("⚠️ 請輸入查詢內容")
 
-# 範例查詢
-st.markdown("---")
-st.subheader("💡 範例查詢")
-
-example_queries = [
-    "保險公司違反洗錢防制規定會受到什麼處罰？",
-    "證券交易法第171條的相關函釋有哪些？",
-    "銀行違反個資法的裁罰案例",
-    "金融機構內部控制缺失的處分標準",
-]
-
-cols = st.columns(2)
-for i, eq in enumerate(example_queries):
-    if cols[i % 2].button(eq, key=f"example_{i}"):
-        st.session_state["auto_search"] = True
-        st.rerun()
+# 頁尾
+st.divider()
+st.caption("資料來源：金融監督管理委員會")
